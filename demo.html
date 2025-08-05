@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ambulance Alert Demo</title>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f97316; /* Orange background */
+            color: #fff; /* Light text for readability */
+        }
+
+        h1, h2 {
+            color: #fff;
+        }
+
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .panel {
+            background-color: #ea580c; /* Slightly darker orange for contrast */
+            border: 2px solid #fff;
+            padding: 15px;
+            border-radius: 10px;
+            width: 300px;
+            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        button {
+            background-color: #fff;
+            color: #ff6600;
+            border: none;
+            padding: 10px 15px;
+            margin: 5px 0;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background-color: #ffe0b3;
+        }
+
+        .log {
+            height: 300px;
+            overflow-y: auto;
+            background-color: #fff;
+            color: #000;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+
+        .alert {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ambulance Alert System Demo</h1>
+    
+    <div class="container">
+        <div class="panel" id="ambulance-panel">
+            <h2>Ambulance Driver</h2>
+            <button onclick="registerAmbulance()">Register Ambulance</button>
+            <button onclick="sendAmbulanceAlert()">Send Alert</button>
+            <div class="log" id="ambulance-log"></div>
+        </div>
+        
+        <div class="panel" id="driver-panel">
+            <h2>Normal Driver</h2>
+            <button onclick="registerDriver()">Register Driver</button>
+            <div class="log" id="driver-log"></div>
+        </div>
+    </div>
+
+    <script>
+        let ambulanceSocket, driverSocket;
+        const ambulanceId = 'ambulance-demo-1';
+        const driverId = 'driver-demo-1';
+        
+        function registerAmbulance() {
+            ambulanceSocket = io('http://localhost:5000', {
+                query: { user_id: ambulanceId }
+            });
+            
+            ambulanceSocket.on('connect', () => {
+                logToPanel('ambulance-log', 'Connected to server');
+
+                fetch('http://localhost:5000/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: ambulanceId,
+                        role: 'ambulance_driver',
+                        latitude: 12.9716,
+                        longitude: 77.5946,
+                        name: 'Demo Ambulance'
+                    })
+                })
+                .then(response => response.json())
+                .then(data => logToPanel('ambulance-log', 'Registered: ' + JSON.stringify(data)));
+            });
+
+            ambulanceSocket.on('alert_status', (data) => {
+                logToPanel('ambulance-log', `Alert status: ${data.message}`);
+            });
+        }
+
+        function sendAmbulanceAlert() {
+            if (!ambulanceSocket) return;
+
+            fetch('http://localhost:5000/send_alert', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: ambulanceId })
+            })
+            .then(response => response.json())
+            .then(data => logToPanel('ambulance-log', 'Alert sent: ' + JSON.stringify(data)))
+            .catch(error => logToPanel('ambulance-log', 'Error: ' + error));
+        }
+
+        function registerDriver() {
+            driverSocket = io('http://localhost:5000', {
+                query: { user_id: driverId }
+            });
+            
+            driverSocket.on('connect', () => {
+                logToPanel('driver-log', 'Connected to server');
+
+                fetch('http://localhost:5000/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: driverId,
+                        role: 'normal_driver',
+                        latitude: 12.9716,
+                        longitude: 77.5946,
+                        name: 'Demo Driver'
+                    })
+                })
+                .then(response => response.json())
+                .then(data => logToPanel('driver-log', 'Registered: ' + JSON.stringify(data)));
+            });
+
+            driverSocket.on('ambulance_alert', (data) => {
+                logToPanel('driver-log', `<div class="alert">🚨 ALERT! Ambulance nearby (${data.distance}m)</div>`);
+            });
+        }
+
+        function logToPanel(panelId, message) {
+            const panel = document.getElementById(panelId);
+            panel.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
+            panel.scrollTop = panel.scrollHeight;
+        }
+    </script>
+</body>
+</html>
